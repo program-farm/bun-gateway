@@ -3,6 +3,7 @@ import {getServiceConfigs} from "./config/utils.ts";
 const serviceConfigs = getServiceConfigs();
 
 Bun.serve({
+  port: parseInt(Bun.env.PORT!) || 3000,
   async fetch({url, ...req}) {
     let _req: Request;
     for (const serviceConfig of serviceConfigs) {
