@@ -1,25 +1,26 @@
-import {getServiceConfigs} from "./config/utils.ts";
-
-const serviceConfigs = getServiceConfigs();
+import {handleError} from "./packages/plugins/default-error-handler";
+import {mainHandler} from "./packages/core";
+import {deleteUnsecureHeaders, handle401} from "./packages/plugins/authorization-handler";
 
 Bun.serve({
   port: parseInt(Bun.env.PORT!) || 3000,
-  async fetch({url, ...req}) {
-    let _req: Request;
-    for (const serviceConfig of serviceConfigs) {
-      if (serviceConfig.pathPattern === undefined) {
-        const _url = new URL(url);
-        _req = new Request({url: `${serviceConfig.host}${_url.pathname}${_url.search}`, ...req});
-      } else if (serviceConfig.pathPattern.test(url)) {
-        const _url = new URL(url);
-        _req = new Request({url: `${serviceConfig.host}${_url.pathname}${_url.search}`, ...req});
-      } else {
-        continue;
-      }
-      return fetch(_req);
+  async fetch(req) {
+    const url = new URL(req.url);
+    if (req.headers.get('X-Forwarded-Host') === null || req.headers.get('Authorization') !== null) {
+      deleteUnsecureHeaders(req);
     }
-    return new Response('Not Found', {status: 404})
+    return mainHandler(req, url)
+      .then((response) => {
+        switch (response.status) {
+          case 401:
+            return handle401(req);
+          default:
+            return response;
+        }
+      })
+      .catch(handleError);
   },
 });
 
-console.log(`Listening on http://localhost:${Bun.env.PORT || 3000}`);
+
+console.log(`Listening on ${Bun.env.PORT || 3000}`);
